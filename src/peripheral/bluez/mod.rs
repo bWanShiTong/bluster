@@ -21,9 +21,9 @@ pub struct Peripheral {
 
 impl Peripheral {
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new() -> Result<Self, Error> {
+    pub async fn new(interface: Option<&str>) -> Result<Self, Error> {
         let connection = Arc::new(Connection::new()?);
-        let adapter = Adapter::new(connection.clone()).await?;
+        let adapter = Adapter::new(connection.clone(), interface).await?;
         adapter.powered(true).await?;
         let gatt = Gatt::new(connection.clone(), adapter.object_path.clone());
         let advertisement = Advertisement::new(connection, adapter.object_path.clone());

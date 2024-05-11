@@ -23,23 +23,35 @@ type ManagedObjectsProps =
     HashMap<Path<'static>, HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>>;
 
 impl Adapter {
-    async fn find_adapter(connection: &Arc<Connection>) -> Result<Path<'static>, Error> {
+    async fn find_adapter(
+        connection: &Arc<Connection>,
+        name: Option<&str>,
+    ) -> Result<Path<'static>, Error> {
         let path = "/".into();
         let proxy = connection.get_bluez_proxy(&path);
 
         let (props,): (ManagedObjectsProps,) = proxy
             .method_call(DBUS_OBJECTMANAGER_IFACE, "GetManagedObjects", ())
             .await?;
-        Ok(props
+
+        let interfaces = props
             .into_iter()
-            .find(|(_path, props)| props.contains_key(LE_ADVERTISING_MANAGER_IFACE))
+            .filter(|(_path, props)| props.contains_key(LE_ADVERTISING_MANAGER_IFACE))
             .map(|(path, _props)| path)
-            .expect("LEAdvertisingManager1 interface not found"))
+            .collect::<Vec<_>>();
+
+        let interface = if let Some(name) = name {
+            interfaces.into_iter().find(|iface| iface.contains(name))
+        } else {
+            interfaces.first().cloned()
+        };
+
+        Ok(interface.expect("No interfaces found").to_owned())
     }
 
     #[allow(clippy::new_ret_no_self)]
-    pub async fn new(connection: Arc<Connection>) -> Result<Self, Error> {
-        Adapter::find_adapter(&connection)
+    pub async fn new(connection: Arc<Connection>, interface: Option<&str>) -> Result<Self, Error> {
+        Adapter::find_adapter(&connection, interface)
             .await
             .map(|object_path| Adapter {
                 object_path,
